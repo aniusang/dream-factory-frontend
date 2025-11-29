@@ -1,5 +1,5 @@
 // API 基础配置
-const API_BASE_URL = 'https://frp-gap.com:45758' // 根据你的后端地址修改
+const API_BASE_URL = 'https://43.103.39.197:8000' // 根据你的后端地址修改
 
 // 导出 API_BASE_URL 供其他组件使用
 export { API_BASE_URL }
