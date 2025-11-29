@@ -245,7 +245,8 @@ export default {
       isPlayingAudio: false, // 是否正在播放语音
       autoPlayAudio: true, // 是否自动播放语音
       pendingAudioTimeout: null, // 待播放的音频定时器
-      bothPagesAudioFinished: false // 双页音频是否都播放完成
+      bothPagesAudioFinished: false, // 双页音频是否都播放完成
+      isMobile: false // 是否是移动端
     }
   },
   computed: {
@@ -257,7 +258,12 @@ export default {
       return speeds[this.speed]
     },
     displayPageRange() {
-      // PageFlip 显示双页，左页是偶数索引，右页是奇数索引
+      // 移动端单页模式
+      if (this.isMobile) {
+        return `${this.currentPageNum + 1} 页`
+      }
+      
+      // PC端双页模式
       const leftPage = this.currentPageNum + 1
       const rightPage = Math.min(this.currentPageNum + 2, this.totalPages)
       
@@ -267,7 +273,12 @@ export default {
       return `${leftPage}-${rightPage} 页`
     },
     isLastPage() {
-      // 当显示的右页等于总页数时，说明到达最后
+      // 移动端单页模式
+      if (this.isMobile) {
+        return this.currentPageNum >= this.totalPages - 1
+      }
+      
+      // PC端双页模式
       return this.currentPageNum + 2 >= this.totalPages
     }
   },
@@ -279,6 +290,10 @@ export default {
     }
   },
   async mounted() {
+    // 检测是否是移动端
+    this.checkMobile()
+    window.addEventListener('resize', this.checkMobile)
+    
     // 获取会话 ID
     const sessionId = localStorage.getItem('currentSessionId')
     
@@ -307,8 +322,14 @@ export default {
     if (this.pageFlip) {
       this.pageFlip.destroy()
     }
+    window.removeEventListener('resize', this.checkMobile)
   },
   methods: {
+    // 检测是否是移动端
+    checkMobile() {
+      this.isMobile = window.innerWidth <= 768
+    },
+    
     async loadBookData(sessionId) {
       this.isLoading = true
       this.loadError = null
@@ -410,8 +431,32 @@ export default {
         container.appendChild(page)
       })
       
+      // 根据设备类型配置 PageFlip
+      const isMobile = this.isMobile
+      
       // 初始化 PageFlip
-      this.pageFlip = new PageFlip(container, {
+      // 注意：PageFlip 的 usePortrait 参数控制的是方向，不是单页/双页
+      // 要实现单页模式，需要设置 width 为单页宽度
+      const config = isMobile ? {
+        // 移动端配置 - 单页模式（通过设置较小的宽度实现）
+        width: 320, // 单页宽度
+        height: 480,
+        size: 'fixed', // 使用固定尺寸
+        maxShadowOpacity: 0.5,
+        showCover: false,
+        mobileScrollSupport: false,
+        swipeDistance: 30,
+        clickEventForward: true,
+        usePortrait: true,
+        startPage: 0,
+        drawShadow: true,
+        flippingTime: 800,
+        useMouseEvents: true,
+        autoSize: false, // 禁用自动尺寸
+        showPageCorners: true,
+        disableFlipByClick: false
+      } : {
+        // PC端配置 - 双页模式
         width: 550,
         height: 700,
         size: 'stretch',
@@ -424,7 +469,7 @@ export default {
         mobileScrollSupport: false,
         swipeDistance: 30,
         clickEventForward: true,
-        usePortrait: true,
+        usePortrait: false,
         startPage: 0,
         drawShadow: true,
         flippingTime: 800,
@@ -432,7 +477,9 @@ export default {
         autoSize: true,
         showPageCorners: true,
         disableFlipByClick: false
-      })
+      }
+      
+      this.pageFlip = new PageFlip(container, config)
       
       this.pageFlip.loadFromHTML(container.querySelectorAll('.page'))
       
@@ -455,7 +502,6 @@ export default {
       // 监听翻页结束事件
       this.pageFlip.on('changeState', (e) => {
         // 检查是否到达最后一页
-        // 当右页等于或超过总页数时，说明已经显示了最后一页
         if (e.data === 'read' && this.isLastPage) {
           this.showEndScreen()
         }
@@ -592,7 +638,7 @@ export default {
       }
     },
     
-    // 播放当前页面的语音（双页模式）
+    // 播放当前页面的语音
     playCurrentPageAudio() {
       if (!this.autoPlayAudio) return
       
@@ -600,50 +646,78 @@ export default {
       this.stopAudio()
       this.bothPagesAudioFinished = false
       
-      // PageFlip 是双页显示，需要播放左页（奇数页）和右页（偶数页）
-      const leftPageIndex = this.currentPageNum
-      const rightPageIndex = this.currentPageNum + 1
-      
       // 保存当前页码，用于检查是否发生了翻页
       const currentPlayingPage = this.currentPageNum
       
+      // 移动端单页模式
+      if (this.isMobile) {
+        const pageIndex = this.currentPageNum
+        console.log(`准备播放第 ${pageIndex + 1} 页的语音（移动端单页）`)
+        
+        this.playPageAudio(pageIndex, () => {
+          // 检查是否还在同一页
+          if (this.currentPageNum !== currentPlayingPage) {
+            console.log('页面已改变，取消自动翻页')
+            return
+          }
+          
+          this.bothPagesAudioFinished = true
+          console.log('单页音频播放完成')
+          
+          // 如果是自动播放模式，延迟后自动翻页或显示结束画面
+          if (this.autoPlay && this.autoPlayAudio) {
+            setTimeout(() => {
+              if (this.currentPageNum !== currentPlayingPage) {
+                console.log('页面已改变，取消自动翻页操作')
+                return
+              }
+              
+              if (!this.isLastPage) {
+                this.nextPage()
+              } else {
+                console.log('最后一页音频播放完成，显示结束画面')
+                this.isFinished = true
+                this.stopAutoPlay()
+              }
+            }, 1000)
+          }
+        })
+        return
+      }
+      
+      // PC端双页模式
+      const leftPageIndex = this.currentPageNum
+      const rightPageIndex = this.currentPageNum + 1
+      
       console.log(`准备播放第 ${leftPageIndex + 1} 页和第 ${rightPageIndex + 1} 页的语音`)
       
-      // 先播放左页（奇数页）
+      // 先播放左页
       this.playPageAudio(leftPageIndex, () => {
-        // 检查是否还在同一页（用户可能已经翻页了）
         if (this.currentPageNum !== currentPlayingPage) {
           console.log('页面已改变，取消后续音频播放')
           return
         }
         
         // 左页播放完成后，延迟 1.5 秒播放右页
-        // 使用 pendingAudioTimeout 保存定时器，以便可以取消
         this.pendingAudioTimeout = setTimeout(() => {
-          // 再次检查页面是否改变
           if (this.currentPageNum !== currentPlayingPage) {
             console.log('页面已改变，取消右页音频播放')
             this.pendingAudioTimeout = null
             return
           }
           
-          // 再次检查是否开启了旁白
           if (this.autoPlayAudio && rightPageIndex < this.stories.length) {
             this.playPageAudio(rightPageIndex, () => {
-              // 再次检查页面是否改变
               if (this.currentPageNum !== currentPlayingPage) {
                 console.log('页面已改变，取消自动翻页')
                 return
               }
               
-              // 右页也播放完成
               this.bothPagesAudioFinished = true
               console.log('双页音频播放完成')
               
-              // 如果是自动播放模式，延迟后自动翻页或显示结束画面
               if (this.autoPlay && this.autoPlayAudio) {
                 setTimeout(() => {
-                  // 最后一次检查页面是否改变
                   if (this.currentPageNum !== currentPlayingPage) {
                     console.log('页面已改变，取消自动翻页操作')
                     return
@@ -652,19 +726,16 @@ export default {
                   if (!this.isLastPage) {
                     this.nextPage()
                   } else {
-                    // 到达最后一页，显示结束画面
                     console.log('最后一页音频播放完成，显示结束画面')
                     this.isFinished = true
                     this.stopAutoPlay()
                   }
-                }, 1000) // 播放完成后延迟 1 秒
+                }, 1000)
               }
             })
           } else {
-            // 只有左页，标记为完成
             this.bothPagesAudioFinished = true
             
-            // 如果是自动播放模式且是最后一页，显示结束画面
             if (this.autoPlay && this.autoPlayAudio && this.isLastPage) {
               setTimeout(() => {
                 if (this.currentPageNum === currentPlayingPage) {
@@ -676,7 +747,7 @@ export default {
             }
           }
           this.pendingAudioTimeout = null
-        }, 1500) // 延迟 1.5 秒
+        }, 1500)
       })
     },
     
@@ -1308,35 +1379,167 @@ export default {
 
 /* 响应式 */
 @media (max-width: 1024px) {
-  .flipbook-container {
-    transform: scale(0.8);
+  .book-display-page {
+    padding: 15px;
+  }
+  
+  .control-panel {
+    padding: 15px;
+    gap: 12px;
+  }
+  
+  .book-wrapper {
+    margin: 30px 0;
+    min-height: 600px;
   }
 }
 
 @media (max-width: 768px) {
-  .flipbook-container {
-    transform: scale(0.6);
+  .book-display-page {
+    padding: 10px;
   }
   
   .control-panel {
     flex-direction: column;
     align-items: stretch;
+    padding: 12px;
+    gap: 10px;
   }
   
   .control-group {
     justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  
+  .control-label {
+    font-size: 0.9rem;
+  }
+  
+  .toggle-btn, .speed-btn {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+  }
+  
+  .book-wrapper {
+    margin: 20px auto;
+    min-height: 520px;
+    max-width: 360px;
+  }
+  
+  .flipbook-container {
+    margin: 0 auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  
+  /* 移动端单页样式 */
+  :deep(.stf__parent) {
+    margin: 0 auto !important;
+  }
+  
+  :deep(.stf__wrapper) {
+    margin: 0 auto !important;
+  }
+  
+  .replay-btn {
+    bottom: 10px;
+    right: 10px;
+    padding: 10px 20px;
+    font-size: 0.95rem;
   }
   
   .page-controls {
     flex-wrap: wrap;
+    gap: 15px;
+    margin: 20px 0;
+  }
+  
+  .btn-nav {
+    min-width: 100px;
+    padding: 10px 16px;
+    font-size: 0.9rem;
+  }
+  
+  .page-indicator {
+    font-size: 1rem;
+    padding: 8px 16px;
+  }
+  
+  .audio-indicator {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+  }
+  
+  :deep(.page-content) {
+    padding: 15px 20px;
   }
   
   :deep(.story-text) {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    -webkit-line-clamp: 5;
   }
   
   :deep(.illustration-medium) {
-    font-size: 6rem;
+    font-size: 4rem;
+  }
+  
+  :deep(.page-number) {
+    font-size: 0.7rem;
+  }
+  
+  :deep(.illustration-section) {
+    padding: 5px;
+  }
+  
+  :deep(.text-section) {
+    padding: 8px 12px;
+  }
+  
+  .end-card {
+    padding: 30px;
+    margin: 0 15px;
+  }
+  
+  .end-card h2 {
+    font-size: 2rem;
+  }
+  
+  .end-card p {
+    font-size: 1.1rem;
+  }
+  
+  .end-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .end-actions .btn {
+    width: 100%;
+  }
+  
+  .modal-content {
+    margin: 0 15px;
+    padding: 20px;
+  }
+  
+  .modal-content h3 {
+    font-size: 1.5rem;
+  }
+  
+  .modal-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .modal-actions .btn {
+    width: 100%;
   }
 }
 </style>
