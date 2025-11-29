@@ -95,6 +95,15 @@
 
       <!-- 绘本展示区 -->
       <div class="book-wrapper">
+        <!-- 移动端音频提示 -->
+        <div v-if="showAudioTip && isMobile" class="audio-tip" @click="dismissAudioTip">
+          <div class="audio-tip-content">
+            <div class="audio-tip-icon">🔊</div>
+            <p>点击屏幕启用音频播放</p>
+            <button class="btn btn-primary btn-sm">知道了</button>
+          </div>
+        </div>
+        
         <div ref="bookContainer" class="flipbook-container"></div>
         <!-- 再看一遍按钮 - 只在反馈窗口关闭后显示 -->
         <button v-if="feedbackClosed" class="replay-btn" title="再看一遍" @click="restart">
@@ -246,7 +255,8 @@ export default {
       autoPlayAudio: true, // 是否自动播放语音
       pendingAudioTimeout: null, // 待播放的音频定时器
       bothPagesAudioFinished: false, // 双页音频是否都播放完成
-      isMobile: false // 是否是移动端
+      isMobile: false, // 是否是移动端
+      showAudioTip: false // 是否显示音频提示
     }
   },
   computed: {
@@ -309,10 +319,20 @@ export default {
     if (this.stories.length > 0) {
       this.$nextTick(() => {
         this.initPageFlip()
-        // 初始化完成后播放第一页的语音
-        setTimeout(() => {
-          this.playCurrentPageAudio()
-        }, 500)
+        
+        // 移动端需要用户交互才能播放音频
+        if (this.isMobile && this.autoPlayAudio) {
+          console.log('[音频] 移动端环境，显示音频提示')
+          // 显示音频提示
+          setTimeout(() => {
+            this.showAudioTip = true
+          }, 1000)
+        } else if (!this.isMobile) {
+          // PC端直接播放
+          setTimeout(() => {
+            this.playCurrentPageAudio()
+          }, 500)
+        }
       })
     }
   },
@@ -540,11 +560,13 @@ export default {
     },
     nextPage() {
       if (this.pageFlip) {
+        console.log('[翻页] 下一页')
         this.pageFlip.flipNext()
       }
     },
     prevPage() {
       if (this.pageFlip) {
+        console.log('[翻页] 上一页')
         this.pageFlip.flipPrev()
       }
     },
@@ -640,7 +662,12 @@ export default {
     
     // 播放当前页面的语音
     playCurrentPageAudio() {
-      if (!this.autoPlayAudio) return
+      if (!this.autoPlayAudio) {
+        console.log('[音频] 旁白已关闭，跳过播放')
+        return
+      }
+      
+      console.log(`[音频] 当前页码: ${this.currentPageNum}, 移动端: ${this.isMobile}`)
       
       // 停止当前播放的语音和待播放的定时器
       this.stopAudio()
@@ -765,12 +792,13 @@ export default {
         ? story.speechUrl 
         : `${API_BASE_URL}${story.speechUrl}`
       
-      console.log(`播放第 ${pageIndex + 1} 页语音:`, audioUrl)
+      console.log(`[音频] 准备播放第 ${pageIndex + 1} 页语音:`, audioUrl)
       
       // 添加 token 到请求头（如果需要）
       const token = localStorage.getItem('access_token')
       if (token && !story.speechUrl.startsWith('http')) {
         // 注意：Audio 标签不支持自定义请求头，需要使用 fetch 预加载
+        console.log(`[音频] 使用认证方式加载音频`)
         this.playAudioWithAuth(audioUrl, token, onEnded)
         return
       }
@@ -778,74 +806,142 @@ export default {
       // 创建音频播放器
       this.audioPlayer = new Audio(audioUrl)
       
+      // 设置音频属性以提高移动端兼容性
+      this.audioPlayer.preload = 'auto'
+      this.audioPlayer.crossOrigin = 'anonymous'
+      
+      console.log(`[音频] 音频对象已创建，准备播放`)
+      
       // 播放音频
       this.audioPlayer.play().then(() => {
         this.isPlayingAudio = true
-        console.log(`第 ${pageIndex + 1} 页语音播放开始`)
+        console.log(`[音频] ✅ 第 ${pageIndex + 1} 页语音播放开始`)
       }).catch(error => {
-        console.error(`第 ${pageIndex + 1} 页语音播放失败:`, error)
+        console.error(`[音频] ❌ 第 ${pageIndex + 1} 页语音播放失败:`, error)
+        console.error(`[音频] 错误详情:`, {
+          name: error.name,
+          message: error.message,
+          code: error.code
+        })
         this.isPlayingAudio = false
+        
+        // 在移动端显示提示
+        if (this.isMobile) {
+          window.$toast('音频播放失败，请检查网络或音频文件', 'warning')
+        }
+        
         if (onEnded) onEnded()
       })
       
       // 监听播放结束
       this.audioPlayer.addEventListener('ended', () => {
         this.isPlayingAudio = false
-        console.log(`第 ${pageIndex + 1} 页语音播放结束`)
+        console.log(`[音频] 第 ${pageIndex + 1} 页语音播放结束`)
         if (onEnded) onEnded()
       })
       
       // 监听播放错误
       this.audioPlayer.addEventListener('error', (e) => {
-        console.error(`第 ${pageIndex + 1} 页语音播放错误:`, e)
+        console.error(`[音频] 第 ${pageIndex + 1} 页语音播放错误:`, e)
+        console.error(`[音频] 错误对象:`, {
+          error: this.audioPlayer.error,
+          code: this.audioPlayer.error?.code,
+          message: this.audioPlayer.error?.message
+        })
         this.isPlayingAudio = false
         if (onEnded) onEnded()
+      })
+      
+      // 监听加载进度
+      this.audioPlayer.addEventListener('loadstart', () => {
+        console.log(`[音频] 开始加载第 ${pageIndex + 1} 页音频`)
+      })
+      
+      this.audioPlayer.addEventListener('canplay', () => {
+        console.log(`[音频] 第 ${pageIndex + 1} 页音频可以播放`)
+      })
+      
+      this.audioPlayer.addEventListener('loadeddata', () => {
+        console.log(`[音频] 第 ${pageIndex + 1} 页音频数据已加载`)
       })
     },
     
     // 使用认证播放音频
     async playAudioWithAuth(url, token, onEnded = null) {
       try {
+        console.log(`[音频认证] 开始获取音频:`, url)
+        
         const response = await fetch(url, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         })
         
+        console.log(`[音频认证] 响应状态:`, response.status)
+        
         if (!response.ok) {
-          throw new Error('获取音频失败')
+          throw new Error(`获取音频失败: ${response.status} ${response.statusText}`)
         }
         
         const blob = await response.blob()
+        console.log(`[音频认证] Blob 大小:`, blob.size, 'bytes, 类型:', blob.type)
+        
         const audioUrl = URL.createObjectURL(blob)
+        console.log(`[音频认证] Blob URL 已创建:`, audioUrl)
         
         this.audioPlayer = new Audio(audioUrl)
         
+        // 设置音频属性
+        this.audioPlayer.preload = 'auto'
+        
         this.audioPlayer.play().then(() => {
           this.isPlayingAudio = true
-          console.log('语音播放开始（认证）')
+          console.log('[音频认证] ✅ 语音播放开始')
         }).catch(error => {
-          console.error('语音播放失败:', error)
+          console.error('[音频认证] ❌ 语音播放失败:', error)
           this.isPlayingAudio = false
+          URL.revokeObjectURL(audioUrl)
+          
+          if (this.isMobile) {
+            window.$toast('音频播放失败，请检查网络', 'warning')
+          }
+          
           if (onEnded) onEnded()
         })
         
         this.audioPlayer.addEventListener('ended', () => {
           this.isPlayingAudio = false
           URL.revokeObjectURL(audioUrl) // 释放 blob URL
-          console.log('语音播放结束（认证）')
+          console.log('[音频认证] 语音播放结束')
           if (onEnded) onEnded()
         })
         
         this.audioPlayer.addEventListener('error', (e) => {
-          console.error('语音播放错误:', e)
+          console.error('[音频认证] 语音播放错误:', e)
+          console.error('[音频认证] 错误详情:', {
+            error: this.audioPlayer.error,
+            code: this.audioPlayer.error?.code
+          })
           this.isPlayingAudio = false
           URL.revokeObjectURL(audioUrl)
           if (onEnded) onEnded()
         })
+        
+        this.audioPlayer.addEventListener('loadstart', () => {
+          console.log('[音频认证] 开始加载音频')
+        })
+        
+        this.audioPlayer.addEventListener('canplay', () => {
+          console.log('[音频认证] 音频可以播放')
+        })
       } catch (error) {
-        console.error('加载音频失败:', error)
+        console.error('[音频认证] 加载音频失败:', error)
         this.isPlayingAudio = false
+        
+        if (this.isMobile) {
+          window.$toast('加载音频失败', 'error')
+        }
+        
         if (onEnded) onEnded()
       }
     },
@@ -877,6 +973,16 @@ export default {
         this.speed = 'medium'
         this.startAutoPlay()
       }
+    },
+    
+    // 关闭音频提示
+    dismissAudioTip() {
+      this.showAudioTip = false
+      console.log('[音频] 用户已确认音频提示')
+      // 尝试播放音频
+      setTimeout(() => {
+        this.playCurrentPageAudio()
+      }, 300)
     }
   }
 }
@@ -975,6 +1081,59 @@ export default {
   margin: 50px 0;
   min-height: 750px;
   position: relative;
+}
+
+/* 音频提示 */
+.audio-tip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  animation: fade-in 0.3s ease;
+}
+
+.audio-tip-content {
+  background: white;
+  padding: 40px 30px;
+  border-radius: 20px;
+  text-align: center;
+  max-width: 320px;
+  margin: 0 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+}
+
+.night-mode .audio-tip-content {
+  background: #2d3436;
+  color: #ddd;
+}
+
+.audio-tip-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  animation: pulse-audio 1.5s ease-in-out infinite;
+}
+
+.audio-tip-content p {
+  font-size: 1.2rem;
+  color: #2d3436;
+  margin-bottom: 25px;
+  line-height: 1.5;
+}
+
+.night-mode .audio-tip-content p {
+  color: #ddd;
+}
+
+.audio-tip-content .btn {
+  width: 100%;
+  padding: 12px 24px;
+  font-size: 1.1rem;
 }
 
 .flipbook-container {
