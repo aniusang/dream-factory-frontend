@@ -36,11 +36,17 @@
           <div class="chat-box">
             <!-- 提示词显示 -->
             <div v-if="selectedCategory || selectedCharacters.length > 0" class="prompt-display">
-              <span v-if="selectedCategory" class="prompt-tag category-tag">
+              <span v-if="selectedCategory" class="prompt-tag category-tag" :title="categoryText">
                 {{ categoryText }}
+                <button class="tag-close-btn" @click="clearCategory" title="清除类别">×</button>
               </span>
-              <span v-if="selectedCharacters.length > 0" class="prompt-tag character-tag">
+              <span 
+                v-if="selectedCharacters.length > 0" 
+                class="prompt-tag character-tag"
+                :title="characterFullText"
+              >
                 {{ characterText }}
+                <button class="tag-close-btn" @click="clearCharacters" title="清除形象">×</button>
               </span>
             </div>
 
@@ -349,6 +355,18 @@ export default {
       }
       return chars.join('、')
     },
+    // 完整的形象列表（用于悬停提示）
+    characterFullText() {
+      if (this.selectedCharacters.length === 0) return ''
+      const chars = this.selectedCharacters.map(val => {
+        if (val.startsWith('custom:')) {
+          return val.replace('custom:', '')
+        }
+        const char = this.characters.find(c => c.value === val)
+        return char ? char.label : val
+      })
+      return chars.join('、')
+    },
     // 获取角色字符串（用于 API）
     characterString() {
       return this.selectedCharacters.map(val => {
@@ -384,6 +402,14 @@ export default {
     this.refreshUserInfo()
   },
   methods: {
+    // 清除类别选择
+    clearCategory() {
+      this.selectedCategory = ''
+    },
+    // 清除形象选择
+    clearCharacters() {
+      this.selectedCharacters = []
+    },
     // 刷新用户信息
     refreshUserInfo() {
       const userPhone = localStorage.getItem('userPhone')
@@ -819,6 +845,15 @@ export default {
   border-radius: 20px;
   font-weight: bold;
   font-size: 0.95rem;
+  position: relative;
+  padding-right: 40px;
+  cursor: help;
+  transition: all 0.3s ease;
+}
+
+.prompt-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
 }
 
 .category-tag {
@@ -829,6 +864,36 @@ export default {
 .character-tag {
   background: #4ECDC4;
   color: #fff;
+}
+
+.tag-close-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.tag-close-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  transform: translateY(-50%) scale(1.1);
+}
+
+.tag-close-btn:active {
+  transform: translateY(-50%) scale(0.95);
 }
 
 .chat-input {

@@ -575,6 +575,15 @@ export default {
     4px 4px 0 #FFE66D,
     8px 8px 0 #FF6B9D,
     12px 12px 0 #4ECDC4;
+  transition: color 0.3s ease, text-shadow 0.3s ease;
+}
+
+.night-mode .title-word {
+  color: #fff;
+  text-shadow: 
+    4px 4px 0 #FFE66D,
+    8px 8px 0 #FF6B9D,
+    12px 12px 0 #4ECDC4;
 }
 
 @keyframes bounce-in {
@@ -593,6 +602,11 @@ export default {
   margin-bottom: 50px;
   color: #000;
   font-weight: 600;
+  transition: color 0.3s ease;
+}
+
+.night-mode .hero-subtitle {
+  color: #fff;
 }
 
 .subtitle-char {
