@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API 测试工具</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    h1 {
+      margin-bottom: 30px;
+      color: #333;
+    }
+    
+    .test-section {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+    }
+    
+    h2 {
+      margin-bottom: 15px;
+      color: #666;
+    }
+    
+    .form-group {
+      margin-bottom: 15px;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    button {
+      padding: 12px 24px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+    }
+    
+    button:hover {
+      background: #45a049;
+    }
+    
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 5px;
+      border-left: 4px solid #4CAF50;
+    }
+    
+    .result.error {
+      border-left-color: #f44336;
+      background: #ffebee;
+    }
+    
+    .result pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    
+    .config {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 5px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 API 对接测试工具</h1>
+    
+    <div class="config">
+      <strong>后端地址配置：</strong>
+      <input type="text" id="apiBaseUrl" value="http://localhost:8000" placeholder="输入后端 API 地址">
+      <small style="display: block; margin-top: 5px; color: #666;">
+        请确保后端服务已启动，并修改为正确的地址
+      </small>
+    </div>
+    
+    <!-- 注册测试 -->
+    <div class="test-section">
+      <h2>📝 测试注册接口</h2>
+      <div class="form-group">
+        <label>手机号：</label>
+        <input type="text" id="regPhone" placeholder="13800138000" value="13800138000">
+      </div>
+      <div class="form-group">
+        <label>密码：</label>
+        <input type="password" id="regPassword" placeholder="至少6位" value="123456">
+      </div>
+      <div class="form-group">
+        <label>昵称：</label>
+        <input type="text" id="regNickname" placeholder="昵称" value="测试用户">
+      </div>
+      <button onclick="testRegister()">测试注册</button>
+      <div id="regResult"></div>
+    </div>
+    
+    <!-- 登录测试 -->
+    <div class="test-section">
+      <h2>🔐 测试登录接口</h2>
+      <div class="form-group">
+        <label>手机号：</label>
+        <input type="text" id="loginPhone" placeholder="13800138000" value="13800138000">
+      </div>
+      <div class="form-group">
+        <label>密码：</label>
+        <input type="password" id="loginPassword" placeholder="密码" value="123456">
+      </div>
+      <button onclick="testLogin()">测试登录</button>
+      <div id="loginResult"></div>
+    </div>
+    
+    <!-- Token 显示 -->
+    <div class="test-section">
+      <h2>🎫 当前 Token</h2>
+      <div id="tokenDisplay" style="word-break: break-all; color: #666;">
+        暂无 Token
+      </div>
+      <button onclick="clearToken()" style="background: #f44336; margin-top: 10px;">清除 Token</button>
+    </div>
+    
+    <!-- 创建绘本会话测试 -->
+    <div class="test-section">
+      <h2>📚 测试创建绘本会话</h2>
+      <div class="form-group">
+        <label>故事梗概：</label>
+        <textarea id="sessionGenggai" rows="3" placeholder="描述你想要的故事..." style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px;">小猪在森林里迷路了，遇到了好心的小熊，他们一起找到了回家的路。</textarea>
+      </div>
+      <div class="form-group">
+        <label>故事形象：</label>
+        <input type="text" id="sessionXingxiang" placeholder="小猪、小熊" value="小猪、小熊">
+      </div>
+      <div class="form-group">
+        <label>故事类别：</label>
+        <select id="sessionLeibie" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-size: 14px;">
+          <option value="科普">科普</option>
+          <option value="心智">心智</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>标题（可选）：</label>
+        <input type="text" id="sessionTitle" placeholder="留空则自动生成" value="">
+      </div>
+      <button onclick="testCreateSession()">创建会话</button>
+      <div id="sessionResult"></div>
+    </div>
+    
+    <!-- 获取会话列表测试 -->
+    <div class="test-section">
+      <h2>📖 测试获取会话列表</h2>
+      <p style="color: #666; margin-bottom: 15px;">
+        获取当前登录用户的所有绘本会话
+      </p>
+      <button onclick="testGetSessions()">获取会话列表</button>
+      <div id="sessionsResult"></div>
+    </div>
+    
+    <!-- 获取会话详情测试 -->
+    <div class="test-section">
+      <h2>📄 测试获取会话详情</h2>
+      <div class="form-group">
+        <label>会话 ID：</label>
+        <input type="text" id="detailSessionId" placeholder="输入会话 ID">
+        <small style="display: block; margin-top: 5px; color: #666;">
+          先从"获取会话列表"中复制一个会话 ID
+        </small>
+      </div>
+      <button onclick="testGetSessionDetail()">获取会话详情</button>
+      <div id="detailResult"></div>
+    </div>
+  </div>
+
+  <script>
+    function getApiBaseUrl() {
+      return document.getElementById('apiBaseUrl').value.trim();
+    }
+
+    function showResult(elementId, data, isError = false) {
+      const element = document.getElementById(elementId);
+      element.className = 'result' + (isError ? ' error' : '');
+      element.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+    }
+
+    function updateTokenDisplay() {
+      const token = localStorage.getItem('access_token');
+      const display = document.getElementById('tokenDisplay');
+      if (token) {
+        display.innerHTML = `
+          <strong>Access Token:</strong><br>
+          ${token}<br><br>
+          <strong>Refresh Token:</strong><br>
+          ${localStorage.getItem('refresh_token') || '无'}
+        `;
+      } else {
+        display.textContent = '暂无 Token';
+      }
+    }
+
+    async function testRegister() {
+      const phone = document.getElementById('regPhone').value;
+      const password = document.getElementById('regPassword').value;
+      const nickname = document.getElementById('regNickname').value;
+      
+      if (!phone || !password) {
+        alert('请填写手机号和密码');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: phone,
+            phone: phone,
+            password: password,
+            full_name: nickname || phone
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('regResult', {
+            status: '✅ 注册成功',
+            data: data
+          });
+        } else {
+          showResult('regResult', {
+            status: '❌ 注册失败',
+            error: data
+          }, true);
+        }
+      } catch (error) {
+        showResult('regResult', {
+          status: '❌ 网络错误',
+          error: error.message
+        }, true);
+      }
+    }
+
+    async function testLogin() {
+      const phone = document.getElementById('loginPhone').value;
+      const password = document.getElementById('loginPassword').value;
+      
+      if (!phone || !password) {
+        alert('请填写手机号和密码');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            username: phone,
+            password: password
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          // 保存 token
+          localStorage.setItem('access_token', data.access_token);
+          localStorage.setItem('refresh_token', data.refresh_token);
+          
+          showResult('loginResult', {
+            status: '✅ 登录成功',
+            data: data
+          });
+          
+          updateTokenDisplay();
+        } else {
+          showResult('loginResult', {
+            status: '❌ 登录失败',
+            error: data
+          }, true);
+        }
+      } catch (error) {
+        showResult('loginResult', {
+          status: '❌ 网络错误',
+          error: error.message
+        }, true);
+      }
+    }
+
+    function clearToken() {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      updateTokenDisplay();
+      alert('Token 已清除');
+    }
+
+    async function testCreateSession() {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        alert('请先登录获取 Token');
+        return;
+      }
+      
+      const genggai = document.getElementById('sessionGenggai').value;
+      const xingxiang = document.getElementById('sessionXingxiang').value;
+      const leibie = document.getElementById('sessionLeibie').value;
+      const title = document.getElementById('sessionTitle').value;
+      
+      if (!genggai || !xingxiang) {
+        alert('请填写故事梗概和故事形象');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/comics/sessions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            title: title || undefined,
+            description: genggai,
+            genggai: genggai,
+            xingxiang: xingxiang,
+            leibie: leibie
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('sessionResult', {
+            status: '✅ 会话创建成功',
+            data: data
+          });
+          
+          // 保存会话 ID
+          localStorage.setItem('currentSessionId', data.id);
+        } else {
+          showResult('sessionResult', {
+            status: '❌ 创建失败',
+            error: data
+          }, true);
+        }
+      } catch (error) {
+        showResult('sessionResult', {
+          status: '❌ 网络错误',
+          error: error.message
+        }, true);
+      }
+    }
+
+    async function testGetSessions() {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        alert('请先登录获取 Token');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/comics/sessions`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('sessionsResult', {
+            status: '✅ 获取成功',
+            total: data.total,
+            sessions: data.sessions
+          });
+          
+          // 如果有会话，自动填充第一个会话 ID 到详情测试
+          if (data.sessions && data.sessions.length > 0) {
+            document.getElementById('detailSessionId').value = data.sessions[0].id;
+          }
+        } else {
+          showResult('sessionsResult', {
+            status: '❌ 获取失败',
+            error: data
+          }, true);
+        }
+      } catch (error) {
+        showResult('sessionsResult', {
+          status: '❌ 网络错误',
+          error: error.message
+        }, true);
+      }
+    }
+
+    async function testGetSessionDetail() {
+      const token = localStorage.getItem('access_token');
+      
+      if (!token) {
+        alert('请先登录获取 Token');
+        return;
+      }
+      
+      const sessionId = document.getElementById('detailSessionId').value.trim();
+      
+      if (!sessionId) {
+        alert('请输入会话 ID');
+        return;
+      }
+      
+      try {
+        const response = await fetch(`${getApiBaseUrl()}/api/comics/sessions/${sessionId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          showResult('detailResult', {
+            status: '✅ 获取成功',
+            data: data,
+            note: data.pages ? `包含 ${data.pages.length} 个页面` : '无页面数据'
+          });
+        } else {
+          showResult('detailResult', {
+            status: '❌ 获取失败',
+            error: data
+          }, true);
+        }
+      } catch (error) {
+        showResult('detailResult', {
+          status: '❌ 网络错误',
+          error: error.message
+        }, true);
+      }
+    }
+
+    // 页面加载时更新 token 显示
+    updateTokenDisplay();
+  </script>
+</body>
+</html>
